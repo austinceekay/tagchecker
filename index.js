@@ -1,28 +1,28 @@
-const express = require('express');
-const axios = require('axios');
-const app = express();
-const PORT = process.env.PORT || 10000;
-
 app.get('/check', async (req, res) => {
   const url = req.query.url;
+
   if (!url) return res.status(400).json({ error: 'Missing URL param' });
 
   try {
-    const response = await axios.get(url, { timeout: 8000 });
+    const response = await axios.get(url, { timeout: 10000 });
     const html = response.data.toLowerCase();
-    const hasGA = html.includes('google-analytics.com') || html.includes('gtag(');
+
     const hasGTM = html.includes('googletagmanager.com') || html.includes('gtm.js');
+    const hasDirectGA = html.includes('google-analytics.com') || html.includes('gtag(') || html.includes('ua-') || html.includes('g-');
 
-    res.json({ url, googleAnalytics: hasGA, googleTagManager: hasGTM });
+    // Adjusted: If GTM is present AND GA script is not directly found,
+    // we now assume GA might be injected by GTM
+    const gaDetected = hasDirectGA || (hasGTM && html.includes('ua-'));
+
+    res.json({
+      url,
+      googleTagManager: hasGTM,
+      googleAnalytics: gaDetected
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch site', details: err.message });
+    res.status(500).json({
+      error: 'Unable to fetch or analyze the page',
+      details: err.message
+    });
   }
-});
-
-app.get('/', (req, res) => {
-  res.send('Tag Detection API is running.');
-});
-
-app.listen(PORT, () => {
-  console.log(`Listening on port ${PORT}`);
 });
